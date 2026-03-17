@@ -2,6 +2,10 @@
 
 Small native GTK/libadwaita desktop app for managing `lsfg-vk` profiles per Steam game on Linux.
 
+## Screenshot
+
+![LSFG Game Manager screenshot](screenshots/main-window.png)
+
 ## What It Does
 
 - Scans installed Steam games from `~/.local/share/Steam/steamapps`
