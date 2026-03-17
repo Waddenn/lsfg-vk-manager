@@ -446,6 +446,8 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         box.set_margin_bottom(14)
         box.set_margin_start(14)
         box.set_margin_end(14)
+        box.set_hexpand(True)
+        box.set_vexpand(True)
 
         search = Gtk.SearchEntry()
         search.set_placeholder_text("Search installed Steam games")
@@ -459,6 +461,8 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.game_list = Gtk.ListBox()
         self.game_list.add_css_class("navigation-sidebar")
         self.game_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.game_list.set_hexpand(True)
+        self.game_list.set_vexpand(True)
         self.game_list.connect("row-selected", self._on_row_selected)
 
         scroll = Gtk.ScrolledWindow()
