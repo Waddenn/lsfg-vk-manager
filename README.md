@@ -20,19 +20,18 @@ Small native GTK/libadwaita desktop app for managing `lsfg-vk` profiles per Stea
 ./app.py
 ```
 
-Or through the installed wrapper:
+You can also run it with Python explicitly:
 
 ```bash
-lsfg-vk-manager
+python app.py
 ```
 
 ## Smoke Test
 
 ```bash
-lsfg-vk-manager --smoke-test
+python app.py --smoke-test
 ```
 
 ## Notes
 
-- The wrapper exports `DISABLE_LSFGVK=1` so the manager itself is not injected by `lsfg-vk`.
 - The app currently targets the local Steam install under `~/.local/share/Steam`.
