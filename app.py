@@ -292,6 +292,24 @@ def game_matches_profile(game: Game, profile: Profile) -> bool:
     return bool(wanted & actual)
 
 
+def should_skip_steam_app(name: str, installdir: str) -> bool:
+    lower_name = name.lower()
+    lower_dir = installdir.lower()
+
+    if lower_name.startswith("proton ") or lower_name == "proton experimental":
+        return True
+    if lower_name.startswith("steam linux runtime"):
+        return True
+    if lower_name == "steamworks common redistributables":
+        return True
+    if lower_dir.startswith("proton"):
+        return True
+    if lower_dir.startswith("steamlinuxruntime_"):
+        return True
+
+    return False
+
+
 def load_games(config: ConfigStore) -> list[Game]:
     games: list[Game] = []
     if not STEAM_APPS.exists():
@@ -304,6 +322,8 @@ def load_games(config: ConfigStore) -> list[Game]:
         name = data.get("name")
         installdir = data.get("installdir")
         if not (appid and name and installdir):
+            continue
+        if should_skip_steam_app(name, installdir):
             continue
 
         install_path = STEAM_COMMON / installdir
