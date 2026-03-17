@@ -383,6 +383,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.current_game: Game | None = None
         self.row_map: dict[str, GameRow] = {}
         self.block_updates = False
+        self.autosave_source_id: int | None = None
 
         self._build_ui()
         self._reload_list()
@@ -394,26 +395,29 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.set_content(self.toast_overlay)
 
         toolbar = Adw.ToolbarView()
+        toolbar.set_top_bar_style(Adw.ToolbarStyle.RAISED)
         self.toast_overlay.set_child(toolbar)
 
         header = Adw.HeaderBar()
         header.set_title_widget(Gtk.Label(label="LSFG Game Manager"))
 
-        reload_button = Gtk.Button(icon_name="view-refresh-symbolic")
+        reload_button = Gtk.Button(label="Reload")
+        reload_button.add_css_class("flat")
+        reload_button.set_tooltip_text("Rescan installed Steam games")
         reload_button.connect("clicked", self._on_reload_clicked)
         header.pack_start(reload_button)
 
-        save_button = Gtk.Button(label="Save")
-        save_button.add_css_class("suggested-action")
-        save_button.connect("clicked", self._on_save_clicked)
-        header.pack_end(save_button)
-
         toolbar.add_top_bar(header)
 
-        split = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
-        split.set_position(360)
-        split.set_start_child(self._build_sidebar())
-        split.set_end_child(self._build_content())
+        split = Adw.NavigationSplitView.new()
+        split.set_min_sidebar_width(280)
+        split.set_max_sidebar_width(360)
+        split.set_sidebar_width_fraction(0.28)
+        split.set_sidebar_width_unit(Adw.LengthUnit.PX)
+        split.set_sidebar(Adw.NavigationPage.new(self._build_sidebar(), "Games"))
+        split.set_content(Adw.NavigationPage.new(self._build_content(), "Details"))
+        split.set_show_content(True)
+        self.split_view = split
         toolbar.set_content(split)
 
         css = Gtk.CssProvider()
@@ -451,6 +455,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
 
         search = Gtk.SearchEntry()
         search.set_placeholder_text("Search installed Steam games")
+        search.set_hexpand(True)
         search.connect("search-changed", self._on_search_changed)
         self.search_entry = search
 
@@ -481,6 +486,8 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_hexpand(True)
+        scroll.set_vexpand(True)
         clamp.set_child(scroll)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
@@ -501,8 +508,13 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.path_label.add_css_class("dim-label")
         self.path_label.set_wrap(True)
 
+        self.meta_label = Gtk.Label(xalign=0)
+        self.meta_label.add_css_class("dim-label")
+        self.meta_label.set_wrap(True)
+
         hero.append(self.title_label)
         hero.append(self.path_label)
+        hero.append(self.meta_label)
         outer.append(hero)
 
         toggles_group = Adw.PreferencesGroup(title="Profile")
@@ -578,8 +590,10 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         exec_frame.set_child(self.execs_label)
         outer.append(exec_frame)
 
-        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        footer.set_margin_top(6)
         self.status_label = Gtk.Label(xalign=0)
+        self.status_label.set_hexpand(True)
         self.status_label.add_css_class("dim-label")
         footer.append(self.status_label)
         outer.append(footer)
@@ -600,17 +614,21 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         else:
             self.filtered_games = self.games[:]
 
-        enabled_count = sum(1 for game in self.games if game.enabled)
-        self.summary_label.set_label(f"{len(self.filtered_games)} shown • {enabled_count} active profiles")
+        self._update_summary()
 
         for game in self.filtered_games:
             row = GameRow(game)
             self.row_map[game.appid] = row
             self.game_list.append(row)
 
+    def _update_summary(self) -> None:
+        enabled_count = sum(1 for game in self.games if game.enabled)
+        self.summary_label.set_label(f"{len(self.filtered_games)} shown • {enabled_count} active profiles")
+
     def _select_game(self, game: Game) -> None:
         self.current_game = game
         self.block_updates = True
+        self.split_view.set_show_content(True)
         self.title_label.set_label(game.name)
         self.path_label.set_label(str(game.install_path))
         self.enabled_row.set_active(game.enabled)
@@ -622,11 +640,11 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.gpu_row.set_text(game.gpu)
         self.execs_label.set_label("\n".join(game.executables) if game.executables else "No obvious executable detected.")
         if game.matched_profile_name:
-            self.status_label.set_label(f"Mapped to existing profile: {game.matched_profile_name}")
+            self.meta_label.set_label(f"Mapped to existing profile: {game.matched_profile_name}")
         elif game.enabled:
-            self.status_label.set_label("Managed profile enabled")
+            self.meta_label.set_label("Managed profile enabled")
         else:
-            self.status_label.set_label("No lsfg-vk profile enabled for this game")
+            self.meta_label.set_label("No lsfg-vk profile enabled for this game")
         self.block_updates = False
 
     def _save_current_fields(self) -> None:
@@ -647,24 +665,43 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
     def _persist(self) -> None:
         self._save_current_fields()
         self.config.save_games(self.games)
-        self._show_toast("Configuration saved")
-        self.status_label.set_label("Saved to ~/.config/lsfg-vk/conf.toml")
-        self.games.sort(key=lambda item: (not item.enabled, item.name.lower()))
-        self._reload_list()
+        self._update_summary()
+        if self.current_game:
+            row = self.row_map.get(self.current_game.appid)
+            if row:
+                row.refresh()
+            self._select_game(self.current_game)
 
     def _show_toast(self, title: str) -> None:
         self.toast_overlay.add_toast(Adw.Toast.new(title))
 
+    def _schedule_autosave(self) -> None:
+        if self.block_updates:
+            return
+        if self.autosave_source_id is not None:
+            GLib.source_remove(self.autosave_source_id)
+        self.autosave_source_id = GLib.timeout_add(250, self._run_autosave)
+
+    def _run_autosave(self) -> bool:
+        self.autosave_source_id = None
+        self._persist()
+        return GLib.SOURCE_REMOVE
+
+    def _flush_autosave(self) -> None:
+        if self.autosave_source_id is None:
+            return
+        GLib.source_remove(self.autosave_source_id)
+        self.autosave_source_id = None
+        self._persist()
+
     def _on_reload_clicked(self, _button: Gtk.Button) -> None:
+        self._flush_autosave()
         self.config.load()
         self.games = load_games(self.config)
         self._reload_list()
         if self.filtered_games:
             self._select_game(self.filtered_games[0])
         self._show_toast("Steam library rescanned")
-
-    def _on_save_clicked(self, _button: Gtk.Button) -> None:
-        self._persist()
 
     def _on_search_changed(self, _entry: Gtk.SearchEntry) -> None:
         current_appid = self.current_game.appid if self.current_game else None
@@ -682,9 +719,11 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
 
     def _on_enabled_toggled(self, _row: Adw.SwitchRow, _pspec: GObject.ParamSpec) -> None:
         self._save_current_fields()
+        self._schedule_autosave()
 
     def _on_profile_field_changed(self, *_args: Any) -> None:
         self._save_current_fields()
+        self._schedule_autosave()
 
 
 class LsfgManagerApplication(Adw.Application):
