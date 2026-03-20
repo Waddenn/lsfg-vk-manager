@@ -54,13 +54,16 @@ def make_game_form_state(game: Game, default_gpu: str) -> GameFormState:
 
 
 def describe_profile_source(game: Game) -> str:
+    ryujinx_hint = ""
+    if game.appid.startswith("custom:ryujinx:") and game.executables:
+        ryujinx_hint = f"\nRyujinx launch hint: LSFG_PROCESS={game.executables[0]}"
     if game.profile_source == "managed":
-        return "Managed profile enabled"
+        return f"Managed profile enabled{ryujinx_hint}"
     if game.profile_source == "existing" and game.matched_profile_name:
-        return f"Using existing profile: {game.matched_profile_name}"
+        return f"Using existing profile: {game.matched_profile_name}{ryujinx_hint}"
     if game.enabled:
-        return "Managed profile enabled"
-    return "No lsfg-vk profile enabled for this game"
+        return f"Managed profile enabled{ryujinx_hint}"
+    return f"No lsfg-vk profile enabled for this game{ryujinx_hint}"
 
 
 def compute_save_indicator(
@@ -133,7 +136,7 @@ class GameRow(Gtk.ListBoxRow):
     def _subtitle(self) -> str:
         state = "Active" if self.game.enabled else "Inactive"
         execs = len(self.game.executables)
-        return f"{state} • {execs} executable{'s' if execs != 1 else ''} in active_in"
+        return f"{state} • {execs} executable target{'s' if execs != 1 else ''}"
 
 
 class LsfgManagerWindow(Adw.ApplicationWindow):
@@ -143,7 +146,11 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
 
         self.settings_store = SettingsStore()
         self.sources = self.settings_store.sources
-        self.config = ConfigStore(self.sources.lsfg_config_path, default_dll=self.sources.lossless_dll_path)
+        self.config = ConfigStore(
+            self.sources.lsfg_config_path,
+            default_dll=self.sources.lossless_dll_path,
+            managed_metadata=self.settings_store.managed_profiles,
+        )
         self.games = load_games(self.config, self.sources)
         self.filtered_games = self.games[:]
         self.current_game: Game | None = None
@@ -537,6 +544,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self._save_current_fields()
         try:
             self.config.save_games(self.games)
+            self.settings_store.write()
         except Exception as exc:
             self._report_runtime_error("Save failed", exc)
             return False
@@ -642,7 +650,11 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self._show_toast(f"{changed} game profiles {action}")
 
     def _rebuild_data(self) -> None:
-        self.config = ConfigStore(self.sources.lsfg_config_path, default_dll=self.sources.lossless_dll_path)
+        self.config = ConfigStore(
+            self.sources.lsfg_config_path,
+            default_dll=self.sources.lossless_dll_path,
+            managed_metadata=self.settings_store.managed_profiles,
+        )
         self.games = load_games(self.config, self.sources)
         self.filtered_games = self.games[:]
         self.current_game = None
@@ -659,7 +671,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         page = Adw.PreferencesPage()
         group = Adw.PreferencesGroup(
             title="Paths",
-            description="Override auto-detected locations for Steam, Hytale and lsfg-vk.",
+            description="Override auto-detected locations for Steam, Hytale, Ryujinx and lsfg-vk.",
         )
         page.add(group)
 
@@ -679,6 +691,11 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
         self.settings_hytale_release_row.add_suffix(self._make_browse_button("folder", self.settings_hytale_release_row))
         group.add(self.settings_hytale_release_row)
 
+        self.settings_ryujinx_config_row = Adw.EntryRow(title="Ryujinx Config.json")
+        self.settings_ryujinx_config_row.set_text(self.sources.ryujinx_config)
+        self.settings_ryujinx_config_row.add_suffix(self._make_browse_button("file", self.settings_ryujinx_config_row))
+        group.add(self.settings_ryujinx_config_row)
+
         self.settings_lsfg_config_row = Adw.EntryRow(title="lsfg-vk conf.toml")
         self.settings_lsfg_config_row.set_text(self.sources.lsfg_config)
         self.settings_lsfg_config_row.add_suffix(self._make_browse_button("file", self.settings_lsfg_config_row))
@@ -696,6 +713,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
                     steam_apps=self.settings_steam_apps_row.get_text(),
                     steam_common=self.settings_steam_common_row.get_text(),
                     hytale_release=self.settings_hytale_release_row.get_text(),
+                    ryujinx_config=self.settings_ryujinx_config_row.get_text(),
                     lsfg_config=self.settings_lsfg_config_row.get_text(),
                     default_gpu=self.settings_default_gpu_row.get_text(),
                 ).lossless_dll_path
@@ -728,6 +746,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
             self.settings_steam_apps_row,
             self.settings_steam_common_row,
             self.settings_hytale_release_row,
+            self.settings_ryujinx_config_row,
             self.settings_lsfg_config_row,
             self.settings_default_gpu_row,
         ):
@@ -747,6 +766,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
             steam_apps=self.settings_steam_apps_row.get_text().strip() or self.sources.steam_apps,
             steam_common=self.settings_steam_common_row.get_text().strip() or self.sources.steam_common,
             hytale_release=self.settings_hytale_release_row.get_text().strip() or self.sources.hytale_release,
+            ryujinx_config=self.settings_ryujinx_config_row.get_text().strip() or self.sources.ryujinx_config,
             lsfg_config=self.settings_lsfg_config_row.get_text().strip() or self.sources.lsfg_config,
             default_gpu=self.settings_default_gpu_row.get_text().strip() or self.sources.default_gpu,
         )
@@ -769,6 +789,7 @@ class LsfgManagerWindow(Adw.ApplicationWindow):
             steam_apps=self.settings_steam_apps_row.get_text().strip() or self.sources.steam_apps,
             steam_common=self.settings_steam_common_row.get_text().strip() or self.sources.steam_common,
             hytale_release=self.settings_hytale_release_row.get_text().strip() or self.sources.hytale_release,
+            ryujinx_config=self.settings_ryujinx_config_row.get_text().strip() or self.sources.ryujinx_config,
             lsfg_config=self.settings_lsfg_config_row.get_text().strip() or self.sources.lsfg_config,
             default_gpu=self.settings_default_gpu_row.get_text().strip() or self.sources.default_gpu,
         )

@@ -5,7 +5,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from lsfg_vk_manager.settings import SettingsStore, SourceSettings, inspect_source_warnings, validate_sources
+from lsfg_vk_manager.settings import (
+    ManagedProfileMetadata,
+    SettingsStore,
+    SourceSettings,
+    inspect_source_warnings,
+    validate_sources,
+)
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -17,8 +23,15 @@ class SettingsStoreTests(unittest.TestCase):
             store.sources.steam_apps = "/tmp/steamapps"
             store.sources.steam_common = "/tmp/common"
             store.sources.hytale_release = "/tmp/hytale"
+            store.sources.ryujinx_config = "/tmp/Ryujinx/Config.json"
             store.sources.lsfg_config = "/tmp/conf.toml"
             store.sources.default_gpu = "GPU Custom"
+            store.managed_profiles["123"] = ManagedProfileMetadata(
+                name="Game 2x FG",
+                executables=["Game.sh"],
+                gpu="GPU Custom",
+                pacing="none",
+            )
             store.write()
 
             with patch("lsfg_vk_manager.settings.detect_default_gpu", return_value="GPU Other"):
@@ -26,9 +39,12 @@ class SettingsStoreTests(unittest.TestCase):
             self.assertEqual(reloaded.sources.steam_apps, "/tmp/steamapps")
             self.assertEqual(reloaded.sources.steam_common, "/tmp/common")
             self.assertEqual(reloaded.sources.hytale_release, "/tmp/hytale")
+            self.assertEqual(reloaded.sources.ryujinx_config, "/tmp/Ryujinx/Config.json")
             self.assertEqual(reloaded.sources.lsfg_config, "/tmp/conf.toml")
             self.assertEqual(reloaded.sources.default_gpu, "GPU Custom")
             self.assertEqual(reloaded.sources.lossless_dll_path, Path("/tmp/common/Lossless Scaling/Lossless.dll"))
+            self.assertIn("123", reloaded.managed_profiles)
+            self.assertEqual(reloaded.managed_profiles["123"].executables, ["Game.sh"])
 
     def test_missing_default_gpu_uses_detected_value(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -40,6 +56,7 @@ class SettingsStoreTests(unittest.TestCase):
                         'steam_apps = "/tmp/steamapps"',
                         'steam_common = "/tmp/common"',
                         'hytale_release = "/tmp/hytale"',
+                        'ryujinx_config = "/tmp/Ryujinx/Config.json"',
                         'lsfg_config = "/tmp/conf.toml"',
                         "",
                     ]
@@ -57,6 +74,7 @@ class SettingsStoreTests(unittest.TestCase):
             steam_apps="/missing/steamapps",
             steam_common="/missing/common",
             hytale_release="/missing/hytale",
+            ryujinx_config="/missing/Ryujinx/Config.json",
             lsfg_config="/missing/conf/conf.toml",
             default_gpu="",
         )
@@ -71,6 +89,7 @@ class SettingsStoreTests(unittest.TestCase):
             steam_apps="/missing/steamapps",
             steam_common="/missing/common",
             hytale_release="/missing/hytale",
+            ryujinx_config="/missing/Ryujinx/Config.json",
             lsfg_config="/missing/conf/conf.toml",
             default_gpu="GPU Custom",
         )
@@ -80,6 +99,7 @@ class SettingsStoreTests(unittest.TestCase):
         self.assertIn("Steam steamapps: path does not exist", warnings)
         self.assertIn("Steam common: path does not exist", warnings)
         self.assertIn("Hytale release: path does not exist", warnings)
+        self.assertIn("Ryujinx config: path does not exist", warnings)
         self.assertIn("lsfg-vk conf.toml: parent directory does not exist", warnings)
 
     def test_invalid_toml_uses_detected_defaults(self) -> None:

@@ -27,7 +27,11 @@ def main(argv: Sequence[str] | None = None, stderr: TextIO | None = None) -> int
 
     if argv and argv[0] == "--smoke-test":
         try:
-            config = ConfigStore(sources.lsfg_config_path, default_dll=sources.lossless_dll_path)
+            config = ConfigStore(
+                sources.lsfg_config_path,
+                default_dll=sources.lossless_dll_path,
+                managed_metadata=settings.managed_profiles,
+            )
             games = load_games(config, sources)
         except Exception as exc:
             return _print_startup_error(exc, stderr)

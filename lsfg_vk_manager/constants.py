@@ -10,6 +10,8 @@ LSFG_CONFIG = Path.home() / ".config/lsfg-vk/conf.toml"
 LOSSLESS_DLL = STEAM_COMMON / "Lossless Scaling/Lossless.dll"
 HYTALE_ROOT = Path.home() / ".local/share/Hytale"
 HYTALE_RELEASE = HYTALE_ROOT / "install/release/package/game/latest"
+RYUJINX_ROOT = Path.home() / ".config/Ryujinx"
+RYUJINX_CONFIG = RYUJINX_ROOT / "Config.json"
 APP_ID = "org.tom.lsfgvkmanager"
 APP_SETTINGS_PATH = Path.home() / ".config/lsfg-vk-manager/settings.toml"
 

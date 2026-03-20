@@ -11,9 +11,11 @@ Small native GTK/libadwaita desktop app for managing `lsfg-vk` profiles for Linu
 - Scans installed Steam games from `~/.local/share/Steam/steamapps`
 - Reads Steam launch metadata from `~/.local/share/Steam/appcache/appinfo.vdf`
 - Detects the native Linux Hytale install from `~/.local/share/Hytale`
+- Detects Ryujinx titles from `~/.config/Ryujinx`
 - Prefers Steam-declared launch executables and falls back to install scanning
 - Lets you enable or disable `lsfg-vk` per game
 - Edits `~/.config/lsfg-vk/conf.toml` directly
+- Supports both the stable `lsfg-vk` `version = 1` format and the older `version = 2` profile format
 - Lets you override source paths from the app settings window
 - Preserves unmanaged profiles and writes managed ones cleanly
 
@@ -65,6 +67,7 @@ Use the settings button in the header bar to override:
 - Steam `steamapps`
 - Steam `common`
 - Hytale release path
+- Ryujinx `Config.json`
 - `lsfg-vk` `conf.toml`
 - default GPU string
 
@@ -91,3 +94,4 @@ The code is now split into a small package to keep responsibilities separate:
 
 - Steam games are loaded from the local install under `~/.local/share/Steam`.
 - Hytale is auto-detected from the native launcher install under `~/.local/share/Hytale`.
+- Ryujinx games are matched with per-title process names, so launch them with `LSFG_PROCESS=<generated-name> ryujinx ...`.

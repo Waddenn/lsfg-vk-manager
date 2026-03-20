@@ -48,6 +48,20 @@ class UiLogicTests(unittest.TestCase):
 
         self.assertEqual(describe_profile_source(game), "Using existing profile: Existing profile")
 
+    def test_describe_profile_source_includes_ryujinx_launch_hint(self) -> None:
+        game = Game(
+            appid="custom:ryujinx:0100152000022000",
+            name="Mario Kart 8 Deluxe [Ryujinx]",
+            installdir="0100152000022000",
+            install_path=Path("/tmp/game"),
+            executables=["ryujinx-mario-kart-8-deluxe-0100152000022000"],
+            enabled=False,
+        )
+
+        description = describe_profile_source(game)
+
+        self.assertIn("LSFG_PROCESS=ryujinx-mario-kart-8-deluxe-0100152000022000", description)
+
     def test_autosave_delay_is_long_enough_for_typing(self) -> None:
         self.assertGreaterEqual(AUTOSAVE_DELAY_MS, 800)
 

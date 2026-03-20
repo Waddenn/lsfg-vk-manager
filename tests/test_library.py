@@ -41,6 +41,7 @@ class LibraryTests(unittest.TestCase):
                 steam_apps=str(steam_apps),
                 steam_common=str(steam_common),
                 hytale_release=str(root / "missing-hytale"),
+                ryujinx_config=str(root / "missing-ryujinx/Config.json"),
                 lsfg_config=str(root / "conf.toml"),
                 default_gpu="GPU Default",
             )
@@ -96,6 +97,7 @@ class LibraryTests(unittest.TestCase):
                 steam_apps=str(steam_apps),
                 steam_common=str(steam_common),
                 hytale_release=str(root / "missing-hytale"),
+                ryujinx_config=str(root / "missing-ryujinx/Config.json"),
                 lsfg_config=str(root / "conf.toml"),
                 default_gpu="GPU Default",
             )
@@ -133,6 +135,7 @@ class LibraryTests(unittest.TestCase):
                 steam_apps=str(steam_apps),
                 steam_common=str(steam_common),
                 hytale_release=str(root / "missing-hytale"),
+                ryujinx_config=str(root / "missing-ryujinx/Config.json"),
                 lsfg_config=str(root / "conf.toml"),
                 default_gpu="GPU Default",
             )
@@ -144,5 +147,90 @@ class LibraryTests(unittest.TestCase):
                 games = load_games(config, sources)
 
             self.assertEqual(games[0].detected_executables, ["Game.x86_64"])
+
+    def test_load_games_discovers_ryujinx_titles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam_apps = root / "steamapps"
+            steam_common = steam_apps / "common"
+            steam_apps.mkdir(parents=True)
+            steam_common.mkdir(parents=True)
+
+            ryujinx_root = root / "Ryujinx"
+            ryujinx_games = ryujinx_root / "games"
+            ryujinx_games.mkdir(parents=True)
+            (ryujinx_games / "0100152000022000").mkdir()
+            switch_dir = root / "Switch"
+            mk_dir = switch_dir / "Mario Kart 8 Deluxe [0100152000022000]"
+            mk_dir.mkdir(parents=True)
+            (mk_dir / "Mario Kart 8 Deluxe [0100152000022000].xci").write_text("", encoding="utf-8")
+            (ryujinx_root / "Config.json").write_text(
+                '{\n  "game_dirs": ["' + str(switch_dir).replace("\\", "\\\\") + '"]\n}\n',
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(root / "conf.toml")
+            sources = SourceSettings(
+                steam_apps=str(steam_apps),
+                steam_common=str(steam_common),
+                hytale_release=str(root / "missing-hytale"),
+                ryujinx_config=str(ryujinx_root / "Config.json"),
+                lsfg_config=str(root / "conf.toml"),
+                default_gpu="GPU Default",
+            )
+
+            games = load_games(config, sources)
+
+            self.assertEqual(len(games), 1)
+            game = games[0]
+            self.assertEqual(game.appid, "custom:ryujinx:0100152000022000")
+            self.assertEqual(game.name, "Mario Kart 8 Deluxe [Ryujinx]")
+            self.assertEqual(game.install_path.name, "Mario Kart 8 Deluxe [0100152000022000].xci")
+            self.assertEqual(game.executables, ["ryujinx-mario-kart-8-deluxe-0100152000022000"])
+
+    def test_load_games_matches_managed_ryujinx_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam_apps = root / "steamapps"
+            steam_common = steam_apps / "common"
+            steam_apps.mkdir(parents=True)
+            steam_common.mkdir(parents=True)
+
+            ryujinx_root = root / "Ryujinx"
+            ryujinx_games = ryujinx_root / "games"
+            ryujinx_games.mkdir(parents=True)
+            (ryujinx_games / "0100000000010000").mkdir()
+            switch_dir = root / "Switch"
+            odyssey_dir = switch_dir / "Super Mario Odyssey[0100000000010000]"
+            odyssey_dir.mkdir(parents=True)
+            (odyssey_dir / "Super Mario Odyssey[0100000000010000].nsp").write_text("", encoding="utf-8")
+            (ryujinx_root / "Config.json").write_text(
+                '{\n  "game_dirs": ["' + str(switch_dir).replace("\\", "\\\\") + '"]\n}\n',
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(root / "conf.toml")
+            sources = SourceSettings(
+                steam_apps=str(steam_apps),
+                steam_common=str(steam_common),
+                hytale_release=str(root / "missing-hytale"),
+                ryujinx_config=str(ryujinx_root / "Config.json"),
+                lsfg_config=str(root / "conf.toml"),
+                default_gpu="GPU Default",
+            )
+            config.profiles = [
+                Profile(
+                    name="Super Mario Odyssey 2x FG",
+                    active_in=["ryujinx-super-mario-odyssey-0100000000010000"],
+                    multiplier=2,
+                    managed_appid="custom:ryujinx:0100000000010000",
+                )
+            ]
+
+            games = load_games(config, sources)
+
+            self.assertEqual(len(games), 1)
+            self.assertTrue(games[0].enabled)
+            self.assertEqual(games[0].profile_source, "managed")
 if __name__ == "__main__":
     unittest.main()

@@ -6,13 +6,51 @@ from pathlib import Path
 
 from lsfg_vk_manager.config_store import ConfigStore
 from lsfg_vk_manager.models import Game, Profile
+from lsfg_vk_manager.settings import ManagedProfileMetadata
 
 
 class ConfigStoreTests(unittest.TestCase):
+    def test_load_supports_v1_game_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "conf.toml"
+            config_path.write_text(
+                '\n'.join(
+                    [
+                        "version = 1",
+                        'dll = "/tmp/Lossless.dll"',
+                        "",
+                        '# lsfg-vk-manager name = "Stable Entry"',
+                        '# lsfg-vk-manager managed_appid = "123"',
+                        "[[game]]",
+                        'exe = "game.sh"',
+                        "multiplier = 3",
+                        "flow_scale = 0.75",
+                        "performance_mode = true",
+                        "hdr_mode = false",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            metadata: dict[str, ManagedProfileMetadata] = {}
+            store = ConfigStore(config_path, managed_metadata=metadata)
+
+            self.assertEqual(store.version, 1)
+            self.assertEqual(store.global_conf["dll"], "/tmp/Lossless.dll")
+            self.assertEqual(len(store.profiles), 1)
+            self.assertEqual(store.profiles[0].name, "Stable Entry")
+            self.assertEqual(store.profiles[0].active_in, ["game.sh"])
+            self.assertEqual(store.profiles[0].managed_appid, "123")
+            self.assertTrue(store.profiles[0].performance_mode)
+            self.assertIn("123", metadata)
+            self.assertEqual(metadata["123"].executables, ["game.sh"])
+
     def test_save_games_preserves_unmanaged_profiles_and_writes_managed_ones(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "conf.toml"
             store = ConfigStore(config_path)
+            store.version = 2
             store.profiles = [
                 Profile(
                     name="Custom unmanaged",
@@ -89,6 +127,7 @@ class ConfigStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "conf.toml"
             store = ConfigStore(config_path)
+            store.version = 2
 
             game = Game(
                 appid="123",
@@ -110,6 +149,7 @@ class ConfigStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "conf.toml"
             store = ConfigStore(config_path)
+            store.version = 2
             unmanaged = Profile(
                 name="Existing custom profile",
                 active_in=["bin/Game.exe", "Game.exe"],
@@ -143,6 +183,41 @@ class ConfigStoreTests(unittest.TestCase):
             self.assertEqual(len(store.profiles), 1)
             self.assertIsNone(store.profiles[0].managed_appid)
             self.assertEqual(store.profiles[0].name, "Existing custom profile")
+
+    def test_save_games_writes_v1_entries_with_manager_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "conf.toml"
+            store = ConfigStore(config_path)
+            store.version = 1
+
+            game = Game(
+                appid="123",
+                name="Stable Game",
+                installdir="Stable Game",
+                install_path=Path(tmp) / "game",
+                executables=["bin/Game.sh", "Game.sh"],
+                enabled=True,
+                profile_name="Stable Game 2x FG",
+                multiplier=3,
+                flow_scale=0.7,
+                performance_mode=True,
+            )
+
+            store.save_games([game])
+
+            text = config_path.read_text(encoding="utf-8")
+            self.assertIn("version = 1", text)
+            self.assertIn('exe = "bin/Game.sh"', text)
+            self.assertIn('exe = "Game.sh"', text)
+            self.assertNotIn("lsfg-vk-manager", text)
+
+            metadata = store.managed_metadata
+            reloaded = ConfigStore(config_path, managed_metadata=metadata)
+            self.assertEqual(reloaded.version, 1)
+            managed = [profile for profile in reloaded.profiles if profile.managed_appid == "123"]
+            self.assertEqual(len(managed), 2)
+            self.assertEqual(managed[0].name, "Stable Game 2x FG")
+            self.assertTrue(all(profile.performance_mode for profile in managed))
 
     def test_load_invalid_toml_falls_back_to_empty_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

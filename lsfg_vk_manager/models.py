@@ -13,6 +13,8 @@ class Profile:
     multiplier: int = 2
     flow_scale: float = 1.0
     performance_mode: bool = False
+    hdr_mode: bool = False
+    experimental_present_mode: str | None = None
     pacing: str = "none"
     gpu: str | None = None
     managed_appid: str | None = None
