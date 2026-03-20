@@ -144,7 +144,5 @@ class LibraryTests(unittest.TestCase):
                 games = load_games(config, sources)
 
             self.assertEqual(games[0].detected_executables, ["Game.x86_64"])
-
-
 if __name__ == "__main__":
     unittest.main()
