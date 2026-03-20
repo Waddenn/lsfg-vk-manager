@@ -1,0 +1,2 @@
+"""LSFG VK Manager package."""
+

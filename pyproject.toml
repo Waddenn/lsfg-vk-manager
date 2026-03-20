@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lsfg-vk-manager"
+version = "0.1.0"
+description = "GTK/libadwaita desktop app for managing lsfg-vk profiles for Linux games"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Tom" },
+]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Games/Entertainment",
+]
+
+[project.scripts]
+lsfg-vk-manager = "lsfg_vk_manager.main:main"
+
+[tool.setuptools.packages.find]
+include = ["lsfg_vk_manager*"]
+
