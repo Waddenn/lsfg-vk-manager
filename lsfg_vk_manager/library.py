@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .appinfo import get_install_valid_launch_executables
 from .config_store import ConfigStore, game_matches_profile
 from .discovery import discover_executables
 from .gpu import GPU_FALLBACK_NAME
@@ -45,7 +46,12 @@ def load_games(config: ConfigStore, sources: SourceSettings) -> list[Game]:
                 continue
 
             install_path = steam_common / installdir
-            detected_executables = discover_executables(install_path, name)
+            launch_executables = get_install_valid_launch_executables(
+                sources.steam_appinfo_path,
+                appid,
+                install_path,
+            )
+            detected_executables = launch_executables or discover_executables(install_path, name)
             games.append(
                 Game(
                     appid=appid,
@@ -89,6 +95,8 @@ def load_games(config: ConfigStore, sources: SourceSettings) -> list[Game]:
                 game.pacing = profile.pacing
                 game.gpu = profile.gpu or sources.default_gpu or GPU_FALLBACK_NAME
                 game.matched_profile_name = profile.name
+                game.matched_profile = profile
+                game.profile_source = "managed" if profile.managed_appid == game.appid else "existing"
                 break
 
     games.sort(key=lambda item: (not item.enabled, item.name.lower()))

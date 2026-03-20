@@ -7,6 +7,15 @@ from .constants import EXECUTABLE_SUFFIXES, SKIP_EXEC_NAMES
 from .utils import normalize_exec
 
 
+def has_executable_signature(path: Path) -> bool:
+    try:
+        header = path.read_bytes()[:4]
+    except OSError:
+        return False
+
+    return header.startswith(b"#!") or header.startswith(b"\x7fELF")
+
+
 def is_candidate_executable(path: Path) -> bool:
     if not path.is_file():
         return False
@@ -18,8 +27,13 @@ def is_candidate_executable(path: Path) -> bool:
     if path.suffix.lower() in EXECUTABLE_SUFFIXES:
         return True
 
+    # Steam/Proton installs may mark many data files as executable; only accept
+    # extensionless files when their contents look like an actual executable.
+    if path.suffix:
+        return False
+
     try:
-        return os.access(path, os.X_OK)
+        return os.access(path, os.X_OK) and has_executable_signature(path)
     except OSError:
         return False
 
@@ -32,16 +46,26 @@ def score_executable(path: Path, game_name: str) -> tuple[int, str]:
 
     if "bin64" in rel or "binlinux" in rel:
         score += 25
+    if any(token in rel for token in ("/bin/", "/binaries/", "/linux/")):
+        score += 10
+    if name.endswith(".sh") or path.suffix.lower() in {".x86_64", ".appimage"}:
+        score += 12
     if name.endswith(".exe"):
         score += 20
+    if "win64" in rel or "windows" in rel:
+        score -= 15
     if base and base in name.replace(".", "").replace("_", "").replace("-", ""):
         score += 40
     if "demo" in rel and "demo" in base:
         score += 10
-    if any(token in name for token in ("launcher", "crash", "support", "eac")):
+    if any(token in name for token in ("launcher", "crash", "support", "eac", "updater", "setup")):
         score -= 50
 
     return score, rel
+
+
+def describe_executable_choice(path: str, game_name: str) -> tuple[int, str]:
+    return score_executable(Path(path), game_name)
 
 
 def discover_executables(install_path: Path, game_name: str) -> list[str]:
@@ -83,4 +107,3 @@ def discover_executables(install_path: Path, game_name: str) -> list[str]:
             break
 
     return chosen
-

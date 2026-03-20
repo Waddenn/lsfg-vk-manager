@@ -9,8 +9,9 @@ Small native GTK/libadwaita desktop app for managing `lsfg-vk` profiles for Linu
 ## What It Does
 
 - Scans installed Steam games from `~/.local/share/Steam/steamapps`
+- Reads Steam launch metadata from `~/.local/share/Steam/appcache/appinfo.vdf`
 - Detects the native Linux Hytale install from `~/.local/share/Hytale`
-- Detects likely executables from each game install
+- Prefers Steam-declared launch executables and falls back to install scanning
 - Lets you enable or disable `lsfg-vk` per game
 - Edits `~/.config/lsfg-vk/conf.toml` directly
 - Lets you override source paths from the app settings window

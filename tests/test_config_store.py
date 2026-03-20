@@ -106,6 +106,54 @@ class ConfigStoreTests(unittest.TestCase):
             reloaded = ConfigStore(config_path)
             self.assertEqual(reloaded.profiles[0].active_in, ["custom/path/Game.sh"])
 
+    def test_save_games_preserves_matching_unmanaged_profile_without_duplication(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "conf.toml"
+            store = ConfigStore(config_path)
+            unmanaged = Profile(
+                name="Existing custom profile",
+                active_in=["bin/Game.exe", "Game.exe"],
+                multiplier=3,
+                flow_scale=0.85,
+                performance_mode=True,
+                pacing="latency",
+                gpu="GPU Z",
+            )
+            store.profiles = [unmanaged]
+
+            game = Game(
+                appid="123",
+                name="Test Game",
+                installdir="Test Game",
+                install_path=Path(tmp) / "game",
+                executables=["bin/Game.exe", "Game.exe"],
+                enabled=True,
+                profile_name="Existing custom profile",
+                multiplier=3,
+                flow_scale=0.85,
+                performance_mode=True,
+                pacing="latency",
+                gpu="GPU Z",
+                matched_profile_name=unmanaged.name,
+                matched_profile=unmanaged,
+            )
+
+            store.save_games([game])
+
+            self.assertEqual(len(store.profiles), 1)
+            self.assertIsNone(store.profiles[0].managed_appid)
+            self.assertEqual(store.profiles[0].name, "Existing custom profile")
+
+    def test_load_invalid_toml_falls_back_to_empty_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "conf.toml"
+            config_path.write_text("[global\nbroken = true\n", encoding="utf-8")
+
+            store = ConfigStore(config_path)
+
+            self.assertEqual(store.profiles, [])
+            self.assertEqual(store.global_conf["dll"], str(store.default_dll))
+
 
 if __name__ == "__main__":
     unittest.main()

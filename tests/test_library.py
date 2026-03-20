@@ -104,6 +104,47 @@ class LibraryTests(unittest.TestCase):
 
             self.assertEqual(games, [])
 
+    def test_load_games_prefers_steam_launch_executables_from_appinfo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steam_apps = root / "steamapps"
+            steam_common = steam_apps / "common"
+            steam_apps.mkdir(parents=True)
+            steam_common.mkdir(parents=True)
+
+            manifest = steam_apps / "appmanifest_300.acf"
+            manifest.write_text(
+                '\n'.join(
+                    [
+                        '"AppState"',
+                        "{",
+                        '    "appid" "300"',
+                        '    "name" "Cool Game"',
+                        '    "installdir" "Cool Game"',
+                        "}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config = ConfigStore(root / "conf.toml")
+            sources = SourceSettings(
+                steam_apps=str(steam_apps),
+                steam_common=str(steam_common),
+                hytale_release=str(root / "missing-hytale"),
+                lsfg_config=str(root / "conf.toml"),
+                default_gpu="GPU Default",
+            )
+
+            with (
+                patch("lsfg_vk_manager.library.get_install_valid_launch_executables", return_value=["Game.x86_64"]),
+                patch("lsfg_vk_manager.library.discover_executables", return_value=["Fallback.exe"]),
+            ):
+                games = load_games(config, sources)
+
+            self.assertEqual(games[0].detected_executables, ["Game.x86_64"])
+
 
 if __name__ == "__main__":
     unittest.main()

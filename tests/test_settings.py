@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from lsfg_vk_manager.settings import SettingsStore, SourceSettings, validate_sources
+from lsfg_vk_manager.settings import SettingsStore, SourceSettings, inspect_source_warnings, validate_sources
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -52,7 +52,7 @@ class SettingsStoreTests(unittest.TestCase):
 
             self.assertEqual(reloaded.sources.default_gpu, "Detected GPU")
 
-    def test_validate_sources_reports_missing_paths(self) -> None:
+    def test_validate_sources_reports_only_blocking_issues(self) -> None:
         sources = SourceSettings(
             steam_apps="/missing/steamapps",
             steam_common="/missing/common",
@@ -63,11 +63,35 @@ class SettingsStoreTests(unittest.TestCase):
 
         issues = validate_sources(sources)
 
-        self.assertIn("Steam steamapps: path does not exist", issues)
-        self.assertIn("Steam common: path does not exist", issues)
-        self.assertIn("Hytale release: path does not exist", issues)
-        self.assertIn("lsfg-vk conf.toml: parent directory does not exist", issues)
         self.assertIn("Default GPU: value cannot be empty", issues)
+        self.assertEqual(len(issues), 1)
+
+    def test_inspect_source_warnings_reports_missing_paths(self) -> None:
+        sources = SourceSettings(
+            steam_apps="/missing/steamapps",
+            steam_common="/missing/common",
+            hytale_release="/missing/hytale",
+            lsfg_config="/missing/conf/conf.toml",
+            default_gpu="GPU Custom",
+        )
+
+        warnings = inspect_source_warnings(sources)
+
+        self.assertIn("Steam steamapps: path does not exist", warnings)
+        self.assertIn("Steam common: path does not exist", warnings)
+        self.assertIn("Hytale release: path does not exist", warnings)
+        self.assertIn("lsfg-vk conf.toml: parent directory does not exist", warnings)
+
+    def test_invalid_toml_uses_detected_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "settings.toml"
+            path.write_text("[sources\nbroken = true\n", encoding="utf-8")
+
+            with patch("lsfg_vk_manager.settings.detect_default_gpu", return_value="Detected GPU"):
+                store = SettingsStore(path)
+
+            self.assertEqual(store.sources.default_gpu, "Detected GPU")
+            self.assertEqual(store.sources.steam_apps, str(store.sources.steam_apps_path))
 
 
 if __name__ == "__main__":

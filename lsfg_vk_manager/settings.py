@@ -40,6 +40,10 @@ class SourceSettings:
         return Path(self.lsfg_config).expanduser()
 
     @property
+    def steam_appinfo_path(self) -> Path:
+        return self.steam_apps_path.parent / "appcache/appinfo.vdf"
+
+    @property
     def lossless_dll_path(self) -> Path:
         return self.steam_common_path / "Lossless Scaling/Lossless.dll"
 
@@ -56,9 +60,13 @@ class SettingsStore:
             self.write()
             return
 
-        data = tomllib.loads(self.path.read_text(encoding="utf-8"))
-        sources = data.get("sources", {})
         detected_gpu = detect_default_gpu()
+        try:
+            data = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            self.sources = SourceSettings(default_gpu=detected_gpu)
+            return
+        sources = data.get("sources", {})
         self.sources = SourceSettings(
             steam_apps=str(sources.get("steam_apps", STEAM_APPS)),
             steam_common=str(sources.get("steam_common", STEAM_COMMON)),
@@ -87,21 +95,39 @@ def validate_sources(sources: SourceSettings) -> list[str]:
     directory_fields = (
         ("Steam steamapps", sources.steam_apps_path),
         ("Steam common", sources.steam_common_path),
-        ("Hytale release", sources.hytale_release_path),
     )
     for label, path in directory_fields:
-        if not path.exists():
-            issues.append(f"{label}: path does not exist")
-        elif not path.is_dir():
+        if path.exists() and not path.is_dir():
             issues.append(f"{label}: expected a directory")
+
+    hytale_path = sources.hytale_release_path
+    if hytale_path.exists() and not hytale_path.is_dir():
+        issues.append("Hytale release: expected a directory")
 
     config_path = sources.lsfg_config_path
     if config_path.exists() and not config_path.is_file():
         issues.append("lsfg-vk conf.toml: expected a file")
-    elif not config_path.parent.exists():
-        issues.append("lsfg-vk conf.toml: parent directory does not exist")
 
     if not sources.default_gpu.strip():
         issues.append("Default GPU: value cannot be empty")
 
     return issues
+
+
+def inspect_source_warnings(sources: SourceSettings) -> list[str]:
+    warnings: list[str] = []
+
+    directory_fields = (
+        ("Steam steamapps", sources.steam_apps_path),
+        ("Steam common", sources.steam_common_path),
+        ("Hytale release", sources.hytale_release_path),
+    )
+    for label, path in directory_fields:
+        if not path.exists():
+            warnings.append(f"{label}: path does not exist")
+
+    config_path = sources.lsfg_config_path
+    if not config_path.exists() and not config_path.parent.exists():
+        warnings.append("lsfg-vk conf.toml: parent directory does not exist")
+
+    return warnings

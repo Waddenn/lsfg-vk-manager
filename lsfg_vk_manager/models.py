@@ -34,3 +34,5 @@ class Game:
     pacing: str = "none"
     gpu: str = GPU_FALLBACK_NAME
     matched_profile_name: str | None = None
+    matched_profile: Profile | None = None
+    profile_source: str | None = None

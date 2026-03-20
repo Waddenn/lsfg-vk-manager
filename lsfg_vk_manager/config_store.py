@@ -15,6 +15,18 @@ def game_matches_profile(game: Game, profile: Profile) -> bool:
     return bool(wanted & actual)
 
 
+def game_fields_match_profile(game: Game, profile: Profile) -> bool:
+    return (
+        [normalize_exec(entry) for entry in game.executables] == [normalize_exec(entry) for entry in profile.active_in]
+        and (game.profile_name or f"{game.name} 2x FG") == profile.name
+        and game.multiplier == profile.multiplier
+        and round(game.flow_scale, 2) == round(profile.flow_scale, 2)
+        and game.performance_mode is profile.performance_mode
+        and game.pacing == profile.pacing
+        and (game.gpu or "") == (profile.gpu or "")
+    )
+
+
 class ConfigStore:
     def __init__(self, path: Path, default_dll: Path | str | None = None) -> None:
         self.path = path
@@ -33,7 +45,15 @@ class ConfigStore:
             self.write()
             return
 
-        data = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        try:
+            data = tomllib.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            self.global_conf = {
+                "allow_fp16": True,
+                "dll": self.default_dll,
+            }
+            self.profiles = []
+            return
         self.version = int(data.get("version", 2))
         global_conf = data.get("global", {})
         self.global_conf = {
@@ -60,17 +80,7 @@ class ConfigStore:
             )
 
     def save_games(self, games: list[Game]) -> None:
-        unmanaged: list[Profile] = []
-        for profile in self.profiles:
-            should_skip = bool(profile.managed_appid)
-            if not should_skip:
-                for game in games:
-                    if game.enabled and game_matches_profile(game, profile):
-                        should_skip = True
-                        break
-            if should_skip:
-                continue
-            unmanaged.append(profile)
+        unmanaged = [profile for profile in self.profiles if not profile.managed_appid]
 
         managed: list[Profile] = []
         for game in games:
@@ -78,6 +88,12 @@ class ConfigStore:
                 continue
             active = game.executables[:]
             if not active:
+                continue
+            if (
+                game.matched_profile
+                and not game.matched_profile.managed_appid
+                and game_fields_match_profile(game, game.matched_profile)
+            ):
                 continue
             managed.append(
                 Profile(
@@ -105,7 +121,7 @@ class ConfigStore:
             "",
             "[global]",
             f"allow_fp16 = {'true' if self.global_conf.get('allow_fp16', True) else 'false'}",
-            f'dll = "{self.global_conf.get("dll", self.default_dll)}"',
+            f'dll = "{escape_toml(str(self.global_conf.get("dll", self.default_dll)))}"',
         ]
 
         for profile in self.profiles:
