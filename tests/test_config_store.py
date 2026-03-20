@@ -85,6 +85,27 @@ class ConfigStoreTests(unittest.TestCase):
 
             self.assertEqual(store.profiles[0].active_in, ["game.exe"])
 
+    def test_save_games_uses_manually_edited_executables(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "conf.toml"
+            store = ConfigStore(config_path)
+
+            game = Game(
+                appid="123",
+                name="Editable Game",
+                installdir="Editable Game",
+                install_path=Path(tmp) / "game",
+                executables=["custom/path/Game.sh"],
+                detected_executables=["bin/Game.exe", "Game.exe"],
+                enabled=True,
+                profile_name="Editable Game 2x FG",
+            )
+
+            store.save_games([game])
+
+            reloaded = ConfigStore(config_path)
+            self.assertEqual(reloaded.profiles[0].active_in, ["custom/path/Game.sh"])
+
 
 if __name__ == "__main__":
     unittest.main()

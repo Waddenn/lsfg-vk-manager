@@ -79,3 +79,29 @@ class SettingsStore:
             "",
         ]
         self.path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def validate_sources(sources: SourceSettings) -> list[str]:
+    issues: list[str] = []
+
+    directory_fields = (
+        ("Steam steamapps", sources.steam_apps_path),
+        ("Steam common", sources.steam_common_path),
+        ("Hytale release", sources.hytale_release_path),
+    )
+    for label, path in directory_fields:
+        if not path.exists():
+            issues.append(f"{label}: path does not exist")
+        elif not path.is_dir():
+            issues.append(f"{label}: expected a directory")
+
+    config_path = sources.lsfg_config_path
+    if config_path.exists() and not config_path.is_file():
+        issues.append("lsfg-vk conf.toml: expected a file")
+    elif not config_path.parent.exists():
+        issues.append("lsfg-vk conf.toml: parent directory does not exist")
+
+    if not sources.default_gpu.strip():
+        issues.append("Default GPU: value cannot be empty")
+
+    return issues

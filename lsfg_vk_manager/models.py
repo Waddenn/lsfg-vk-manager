@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
 from .gpu import GPU_FALLBACK_NAME
 
 
@@ -24,6 +25,7 @@ class Game:
     installdir: str
     install_path: Path
     executables: list[str]
+    detected_executables: list[str] = field(default_factory=list)
     enabled: bool = False
     profile_name: str = ""
     multiplier: int = 2

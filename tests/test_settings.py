@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from lsfg_vk_manager.settings import SettingsStore
+from lsfg_vk_manager.settings import SettingsStore, SourceSettings, validate_sources
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -51,6 +51,23 @@ class SettingsStoreTests(unittest.TestCase):
                 reloaded = SettingsStore(path)
 
             self.assertEqual(reloaded.sources.default_gpu, "Detected GPU")
+
+    def test_validate_sources_reports_missing_paths(self) -> None:
+        sources = SourceSettings(
+            steam_apps="/missing/steamapps",
+            steam_common="/missing/common",
+            hytale_release="/missing/hytale",
+            lsfg_config="/missing/conf/conf.toml",
+            default_gpu="",
+        )
+
+        issues = validate_sources(sources)
+
+        self.assertIn("Steam steamapps: path does not exist", issues)
+        self.assertIn("Steam common: path does not exist", issues)
+        self.assertIn("Hytale release: path does not exist", issues)
+        self.assertIn("lsfg-vk conf.toml: parent directory does not exist", issues)
+        self.assertIn("Default GPU: value cannot be empty", issues)
 
 
 if __name__ == "__main__":

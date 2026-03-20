@@ -45,13 +45,15 @@ def load_games(config: ConfigStore, sources: SourceSettings) -> list[Game]:
                 continue
 
             install_path = steam_common / installdir
+            detected_executables = discover_executables(install_path, name)
             games.append(
                 Game(
                     appid=appid,
                     name=name,
                     installdir=installdir,
                     install_path=install_path,
-                    executables=discover_executables(install_path, name),
+                    executables=detected_executables[:],
+                    detected_executables=detected_executables,
                     profile_name=f"{name} 2x FG",
                 )
             )
@@ -71,6 +73,7 @@ def load_games(config: ConfigStore, sources: SourceSettings) -> list[Game]:
                 installdir="Hytale",
                 install_path=hytale_release,
                 executables=hytale_executables,
+                detected_executables=hytale_executables[:],
                 profile_name="Hytale 2x FG",
             )
         )
